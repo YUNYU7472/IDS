@@ -405,8 +405,6 @@ def detect(model, data_path, max_values, output_path=None):
     # 加载数据
     print(f"正在加载数据: {data_path}")
     df = pd.read_csv(data_path, header=None)
-    if df.shape[1] == 43:
-        df = df.iloc[:, :-1]
     
     # 预处理数据
     print("正在预处理数据...")
