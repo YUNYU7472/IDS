@@ -40,6 +40,17 @@ pd.options.display.float_format = "{:,.4f}".format
 sm = SMOTE(random_state=42)
 
 # ============================================================================
+# Device Configuration (GPU/CPU)
+# ============================================================================
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("=" * 80)
+print(f"Using device: {device}")
+if device.type == 'cuda':
+    print(f"GPU Name: {torch.cuda.get_device_name(0)}")
+    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+print("=" * 80)
+
+# ============================================================================
 # Configuration Parameters
 # ============================================================================
 THREAT_TYPE = 'threat_type'
@@ -57,7 +68,7 @@ runtime = 21
 file_name = "federated_" + str(isSmote) + "_" + str(number_of_slices) + "_" + str(runtime) + ".txt"
 file = open(file_name, "w")
 
-data_path = "./data/"
+data_path = "../data/"  # Adjusted path since script is in intrusion_detection_system folder
 
 colnames = ['duration', 'protocol_type', 'service', 'flag', 'src_bytes', 'dst_bytes', 'land',
             'wrong_fragment', 'urgent', 'hot', 'num_failed_logins', 'logged_in', 'num_compromised',
@@ -306,6 +317,9 @@ def train(model, train_loader, criterion, optimizer):
     correct = 0
 
     for data, target in train_loader:
+        # Move data to device
+        data, target = data.to(device), target.to(device)
+        
         output = model(data)
         loss = criterion(output, target)
         optimizer.zero_grad()
@@ -326,6 +340,9 @@ def validation(model, test_loader, criterion):
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            # Move data to device
+            data, target = data.to(device), target.to(device)
+            
             output = model(data)
 
             test_loss += criterion(output, target).item()
@@ -345,6 +362,9 @@ def confusion_mat(model, test_loader):
 
     # iterate over test data
     for inputs, labels in test_loader:
+        # Move data to device
+        inputs, labels = inputs.to(device), labels.to(device)
+        
         output = model(inputs)
 
         output = (torch.max(torch.exp(output), 1)[1]).data.cpu().numpy()
@@ -375,7 +395,7 @@ def create_model_optimizer_criterion_dict(number_of_slices):
 
     for i in range(number_of_slices):
         model_name = "model" + str(i)
-        model_info = Net2nn(inputs, outputs)
+        model_info = Net2nn(inputs, outputs).to(device)  # Move model to device
         model_dict.update({model_name: model_info})
 
         optimizer_name = "optimizer" + str(i)
@@ -391,14 +411,14 @@ def create_model_optimizer_criterion_dict(number_of_slices):
 
 def get_averaged_weights(model_dict, number_of_slices):
     """Calculate averaged weights from all local models (FedAvg)"""
-    fc1_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc1.weight.shape)
-    fc1_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc1.bias.shape)
+    fc1_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc1.weight.shape).to(device)
+    fc1_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc1.bias.shape).to(device)
 
-    fc2_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc2.weight.shape)
-    fc2_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc2.bias.shape)
+    fc2_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc2.weight.shape).to(device)
+    fc2_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc2.bias.shape).to(device)
 
-    fc3_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc3.weight.shape)
-    fc3_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc3.bias.shape)
+    fc3_mean_weight = torch.zeros(size=model_dict[name_of_models[0]].fc3.weight.shape).to(device)
+    fc3_mean_bias = torch.zeros(size=model_dict[name_of_models[0]].fc3.bias.shape).to(device)
 
     with torch.no_grad():
 
@@ -533,7 +553,7 @@ print("\n" + "=" * 80)
 print("CENTRALIZED MODEL TRAINING")
 print("=" * 80)
 
-centralized_model = Net2nn(inputs, outputs)
+centralized_model = Net2nn(inputs, outputs).to(device)  # Move model to device
 centralized_optimizer = torch.optim.SGD(centralized_model.parameters(), lr=0.01, momentum=0.9)
 centralized_criterion = nn.CrossEntropyLoss()
 
@@ -548,7 +568,7 @@ test_ds = TensorDataset(x_test, y_test)
 test_dl = DataLoader(test_ds, batch_size=batch_size * 2)
 
 for i in range(number_of_slices):
-    centralized_model = Net2nn(inputs, outputs)
+    centralized_model = Net2nn(inputs, outputs).to(device)  # Move model to device
     centralized_optimizer = torch.optim.SGD(centralized_model.parameters(), lr=0.01, momentum=0.9)
     centralized_criterion = nn.CrossEntropyLoss()
     print('Training with slice ' + str(i + 1) + ' data')
@@ -591,7 +611,7 @@ print(x_test.shape, y_test.shape)
 
 # Create main model
 print("\nMain model is created")
-main_model = Net2nn(inputs, outputs)
+main_model = Net2nn(inputs, outputs).to(device)  # Move model to device
 main_optimizer = torch.optim.SGD(main_model.parameters(), lr=learning_rate, momentum=0.9)
 main_criterion = nn.CrossEntropyLoss()
 
