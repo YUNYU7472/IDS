@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Conda / venv
+.venv/
+venv/
+env/
+*.conda
+*.egg-info/
+
+# Model / checkpoints / outputs
+ckpt/
+*.pth
+*.pt
+*.pkl
+*.joblib
+detection_results*.csv
+*_检测结果.csv
+
+# Data (NSL-KDD can be large; usually don't push raw data)
+data/
+*.csv
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+!detection_results.csv
