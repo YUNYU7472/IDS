@@ -32,6 +32,7 @@ import torch
 import torch.nn.functional as F
 
 import logging
+from response_actions import maybe_redirect_to_honeypot
 
 import torch.nn as nn
 
@@ -466,6 +467,17 @@ def main():
                 topk = sorted(enumerate(probs.tolist()), key=lambda x: x[1], reverse=True)[:3]
                 tk = ','.join([f"{i}:{p*100:.2f}%" for i, p in topk])
                 parts.append(f"topk={tk}")
+
+            # maybe redirect to honeypot (dry-run); do not print to stdout
+            try:
+                # include human-readable pred_name in meta for downstream beacon payload
+                meta["pred_name"] = pred_name
+                ra = maybe_redirect_to_honeypot(meta=meta, pred=pred, conf=conf)
+                if logger.level == logging.DEBUG:
+                    logger.debug(f"response_action={ra}")
+            except Exception:
+                logger.exception("response_actions failed")
+
             logger.warning(' '.join(parts))
 
         # DEBUG 每条样本日志（中文化）
