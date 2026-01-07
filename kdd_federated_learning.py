@@ -22,6 +22,9 @@ from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 from imblearn.over_sampling import SMOTE
 
+# Progress bar for training visualization
+from tqdm import tqdm
+
 pd.options.display.float_format = "{:,.4f}".format
 
 # ============================================================================
@@ -342,9 +345,6 @@ def train_node_models(model_dict, optimizer_dict, criterion_dict, name_of_models
                       number_of_slices, numEpoch, batch_size, print_progress=False):
     """训练所有本地节点模型"""
     for i in range(number_of_slices):
-        if print_progress:
-            print(f'训练联邦学习节点 {i + 1}/{number_of_slices}')
-
         train_ds = TensorDataset(x_train_dict[name_of_x_train_sets[i]], y_train_dict[name_of_y_train_sets[i]])
         train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
 
@@ -352,10 +352,20 @@ def train_node_models(model_dict, optimizer_dict, criterion_dict, name_of_models
         criterion = criterion_dict[name_of_models[i].replace('model', 'criterion')]
         optimizer = optimizer_dict[name_of_models[i].replace('model', 'optimizer')]
 
-        for epoch in range(numEpoch):
+        # 为每个节点的epoch训练添加进度条
+        epoch_pbar = tqdm(range(numEpoch), desc=f'节点 {i+1}/{number_of_slices} 训练', 
+                         leave=False, ncols=100, unit='epoch')
+        
+        for epoch in epoch_pbar:
             train_loss, train_accuracy = train(model, train_dl, criterion, optimizer)
-            if print_progress and i == 0 and epoch % 5 == 0:
-                print(f"  节点 {i}, Epoch {epoch+1}/{numEpoch}, 训练准确率: {train_accuracy:.4f}")
+            # 实时更新进度条显示loss和accuracy
+            epoch_pbar.set_postfix({
+                'loss': f'{train_loss:.4f}',
+                'acc': f'{train_accuracy:.4f}',
+                'epoch': f'{epoch+1}/{numEpoch}'
+            })
+        
+        epoch_pbar.close()
 
 
 # ============================================================================
@@ -550,17 +560,22 @@ def train_mode(args):
     test_ds = TensorDataset(x_test, y_test)
     test_dl = DataLoader(test_ds, batch_size=batch_size * 2)
     
-    for iteration in range(num_iterations):
-        print(f"\n--- 迭代 {iteration + 1}/{num_iterations} ---")
+    # 为联邦学习迭代添加主进度条
+    iteration_pbar = tqdm(range(num_iterations), desc='联邦学习迭代', 
+                         ncols=100, unit='iter', position=0)
+    
+    for iteration in iteration_pbar:
+        # 更新迭代进度条描述
+        iteration_pbar.set_description(f'联邦学习迭代 [{iteration+1}/{num_iterations}]')
         
         # 将主模型参数发送到节点
         model_dict = send_main_model_to_nodes(main_model, model_dict, name_of_models, number_of_slices)
         
-        # 训练节点模型
+        # 训练节点模型（内部会显示节点级别的进度条）
         train_node_models(model_dict, optimizer_dict, criterion_dict, name_of_models,
                          name_of_x_train_sets, name_of_y_train_sets, x_train_dict, y_train_dict,
                          x_test, y_test, number_of_slices, numEpoch, batch_size,
-                         print_progress=(iteration == 0))
+                         print_progress=False)
         
         # 聚合权重
         main_model = set_averaged_weights_as_main_model_weights(
@@ -568,7 +583,14 @@ def train_mode(args):
         
         # 评估
         test_loss, test_accuracy = validation(main_model, test_dl, main_criterion)
-        print(f"迭代 {iteration + 1} 完成 - 测试准确率: {test_accuracy:.4f}")
+        
+        # 更新主进度条显示测试准确率
+        iteration_pbar.set_postfix({
+            'test_acc': f'{test_accuracy:.4f}',
+            'test_loss': f'{test_loss:.4f}'
+        })
+    
+    iteration_pbar.close()
     
     # 最终评估
     print("\n" + "=" * 80)
