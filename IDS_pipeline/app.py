@@ -1,7 +1,7 @@
 import streamlit as st
 from pages.dashboard_index import render_home
 from pages.dashboard_realtimeids import render_realtime
-
+from pages.dashboard_honeypot import render_honeypot
 # ===============================
 # 路由：读取 query param，决定当前页面
 # ===============================
@@ -79,6 +79,6 @@ if __name__ == "__main__":
     elif _page == "evidence":
         render_placeholder("evidence", "决策证据链")
     elif _page == "honeypot":
-        render_placeholder("honeypot", "蜜罐重定向")
+        render_honeypot()
     else:
         render_home()
