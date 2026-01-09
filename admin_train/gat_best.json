@@ -1,0 +1,28 @@
+{
+  "timestamp": "20260108_234043",
+  "params": {
+    "batch_size": 128,
+    "learning_rate": 0.01,
+    "nhid": 128,
+    "nheads": 8,
+    "dropout": 0.1
+  },
+  "final_metrics": {
+    "loss": 0.04540499531806021,
+    "accuracy": 0.9851188472156757,
+    "precision": 0.9805690492713394,
+    "recall": 0.9886649874055415,
+    "f1": 0.9846003762803986
+  },
+  "training_time": 1510.3352715969086,
+  "confusion_matrix": [
+    [
+      7565,
+      140
+    ],
+    [
+      81,
+      7065
+    ]
+  ]
+}
