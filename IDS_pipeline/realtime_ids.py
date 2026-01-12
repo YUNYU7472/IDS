@@ -117,18 +117,8 @@ def load_checkpoint_model(model_path: str):
         if key not in checkpoint:
             raise KeyError(f"checkpoint 缺少字段: {key}")
 
-    # feature_names 提取逻辑（兼容 Series 或 dict）
-    max_values = checkpoint['max_values']
-    if hasattr(max_values, 'index'):
-        feature_names = list(max_values.index)
-    elif isinstance(max_values, dict):
-        feature_names = list(max_values.keys())
-    else:
-        # 尝试直接迭代
-        feature_names = list(max_values)
-
+    feature_names = list(checkpoint['max_values'].index)
     inputs = int(checkpoint['inputs'])
-    # outputs = int(checkpoint['outputs'])
     outputs = int(checkpoint['outputs'])
 
     if len(feature_names) != inputs:
@@ -147,21 +137,7 @@ def load_checkpoint_model(model_path: str):
     except Exception:
         sha = 'unknown'
 
-    # max_values 提取：
-    # 下游 predict_one 使用时会转 numpy，我们需要支持 dict 查找或 Series 查找
-    # 必须确保 max_values 能被转换为 numpy array 且顺序正确。
-    
-    if isinstance(max_values, dict):
-         # dict, convert based on feature_names order
-         max_v_arr = np.array([float(max_values[f]) for f in feature_names])
-    elif hasattr(max_values, 'values'):
-         # likely pandas Series
-         max_v_arr = max_values.values.astype(float)
-    else:
-         # fallback (e.g. list or unknown iterable), assume order matches
-         max_v_arr = np.array(list(max_values)).astype(float)
-         
-    return model, feature_names, inputs, outputs, max_v_arr, sha
+    return model, feature_names, inputs, outputs, checkpoint['max_values'], sha
 
 
 def parse_csv_stream(stdin, feature_names: List[str]) -> Iterator[Tuple[np.ndarray, dict, str]]:
@@ -268,16 +244,7 @@ def parse_jsonl_stream(stdin, feature_names: List[str]) -> Iterator[Tuple[np.nda
 
             # 尝试转 float
             try:
-                # 首先处理可能的 None 或非数值
-                safe_float_vals = []
-                for x in vals:
-                    if x is None:
-                        safe_float_vals.append(0.0)
-                    else:
-                        safe_float_vals.append(float(x))
-                arr = np.array(safe_float_vals, dtype=float)
-                # 将可能的 NaN/Inf 替换为 0
-                arr[~np.isfinite(arr)] = 0.0
+                arr = np.array([float(x) for x in vals], dtype=float)
             except Exception:
                 yield None, meta, 'parse_error'
                 continue
@@ -451,13 +418,9 @@ def main():
             bad_rows += 1
             bad_reasons['parse_error'] = bad_reasons.get('parse_error', 0) + 1
             continue
-        
-        # 归一化后可能再次产生 NaN/Inf (例如除以了0), 再次进行清洗
-        x[~np.isfinite(x)] = 0.0
 
-        # 如果有 NaN/Inf，不再跳过，而是视为0 (因为已经清洗了，这里理论上不会触发，但保留作为最终守门员)
+        # 如果有 NaN/Inf，跳过
         if not np.isfinite(x).all():
-             # 双重保险，如果还无法清洗，才丢弃
             bad_rows += 1
             bad_reasons['nan_inf'] = bad_reasons.get('nan_inf', 0) + 1
             continue

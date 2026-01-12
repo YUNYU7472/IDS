@@ -21,6 +21,8 @@ from typing import Dict, Any, Optional, List
 
 # module-level cooldown store: src_ip -> last_ts_ms
 _last_trigger_ts: Dict[str, int] = {}
+_log_inited = False  # 本进程内：是否已经初始化（清空）过 honeypot_redirect.log
+
 
 
 @dataclass
@@ -166,8 +168,16 @@ def maybe_redirect_to_honeypot(meta: Dict[str, Any], pred: int, conf: float, cfg
         result["logged"] = True
         try:
             line = json.dumps(result, ensure_ascii=False) + "\n"
-            with open(cfg.log_path, "a", encoding="utf-8") as f:
+
+            global _log_inited
+            mode = "a"
+            if not _log_inited:
+                mode = "w"          # 本次运行第一次写：先清空旧文件
+                _log_inited = True  # 标记：后面都用追加
+
+            with open(cfg.log_path, mode, encoding="utf-8") as f:
                 f.write(line)
+
         except Exception as e:
             # mark failure and try to write a small failure record to an alternate file so there is an audit trail
             result["logged"] = False
